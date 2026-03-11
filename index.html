@@ -161,34 +161,41 @@ const migrateOldData=async(uid)=>{
     const migrated=await db._getDoc(db._doc(db,`users/${uid}/data`,'_migrated'));
     if(migrated.exists())return false;
 
-    // Check if old data exists at /finanzas
     const oldKeys=['accs','cats','exps','dist','savs','goals','invs','mlist','theme','currency','exRate'];
     const oldRef=(key)=>db._doc(db,'finanzas',key);
 
-    let didMigrate=false;
     for(const key of oldKeys){
-      const snap=await db._getDoc(oldRef(key));
-      if(snap.exists()){
+      try{
+        const snap=await db._getDoc(oldRef(key));
+        if(!snap.exists())continue;
         const data=snap.data();
-        // Old data might be stored as {v: ...} or directly as the value
-        const val=data.v!==undefined?data.v:data;
-        // Normalize balanceGBP for accs
-        if(key==='accs'&&Array.isArray(val)){
-          const normalized=val.map(a=>({
-            ...a,
-            balanceGBP:a.balanceGBP!==undefined?a.balanceGBP:(a.balance||0)
-          }));
-          await dbSave(uid,key,normalized);
-        } else {
-          await dbSave(uid,key,val);
+        let val=data.v!==undefined?data.v:data;
+
+        // If it's supposed to be an array but came as object, convert it
+        const arrayKeys=['accs','cats','exps','savs','goals','invs','mlist'];
+        if(arrayKeys.includes(key)){
+          if(!Array.isArray(val)){
+            // Convert object with numeric keys to array, or just use empty array
+            if(typeof val==='object'&&val!==null){
+              val=Object.values(val);
+            } else {
+              val=[];
+            }
+          }
+          // Normalize balanceGBP for accs
+          if(key==='accs'){
+            val=val.map(a=>({...a,balanceGBP:a.balanceGBP!==undefined?a.balanceGBP:(a.balance||0)}));
+          }
         }
-        didMigrate=true;
+        await dbSave(uid,key,val);
+      }catch(e){
+        console.warn('Migration skip key:',key,e);
       }
     }
 
     // Mark migration as done so it never runs again
     await db._setDoc(db._doc(db,`users/${uid}/data`,'_migrated'),{v:true,ts:Date.now()});
-    return didMigrate;
+    return true;
   }catch(e){
     console.error('Migration error:',e);
     return false;
