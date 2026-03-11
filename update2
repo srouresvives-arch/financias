@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Finanzas">
+  <title>Gestor Financiero Personal</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { margin: 0; padding: 0; font-family: 'DM Sans', -apple-system, sans-serif; background: #0f1117; color: #f0f0f0; overscroll-behavior: none; }
+    input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; }
+    .card { background: #1a1d27; border: 1px solid #2a2d3a; border-radius: 16px; }
+    .card-light { background: #1e2130; border: 1px solid #2a2d3a; border-radius: 12px; }
+    .accent { color: #6c63ff; }
+    .accent-bg { background: #6c63ff; }
+    .accent-border { border-color: #6c63ff; }
+    .green { color: #22d3a5; }
+    .green-bg { background: #22d3a5; }
+    .red-c { color: #ff6b6b; }
+    .input-dark { background: #0f1117; border: 1px solid #2a2d3a; color: #f0f0f0; border-radius: 10px; padding: 10px 14px; width: 100%; font-family: 'DM Sans', sans-serif; font-size: 15px; outline: none; transition: border-color 0.2s; }
+    .input-dark:focus { border-color: #6c63ff; }
+    .btn-primary { background: #6c63ff; color: white; border: none; border-radius: 10px; padding: 12px 20px; font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 15px; cursor: pointer; width: 100%; transition: opacity 0.2s; }
+    .btn-primary:active { opacity: 0.8; }
+    .btn-secondary { background: #2a2d3a; color: #f0f0f0; border: none; border-radius: 10px; padding: 12px 20px; font-family: 'DM Sans', sans-serif; font-weight: 500; font-size: 15px; cursor: pointer; width: 100%; }
+    .nav-btn { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 12px; border-radius: 12px; border: none; background: transparent; color: #666; cursor: pointer; transition: all 0.2s; }
+    .nav-btn.active { color: #6c63ff; background: rgba(108,99,255,0.12); }
+    .nav-btn span { font-size: 10px; font-weight: 600; font-family: 'DM Sans', sans-serif; letter-spacing: 0.3px; }
+    .mono { font-family: 'DM Mono', monospace; }
+    .candle-green { fill: #22d3a5; stroke: #22d3a5; }
+    .candle-red { fill: #ff6b6b; stroke: #ff6b6b; }
+    .tag { background: rgba(108,99,255,0.15); color: #6c63ff; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .tag-green { background: rgba(34,211,165,0.12); color: #22d3a5; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .tag-red { background: rgba(255,107,107,0.12); color: #ff6b6b; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #22d3a5; display: inline-block; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.8)} }
+    .loading-shimmer { background: linear-gradient(90deg, #1a1d27 25%, #2a2d3a 50%, #1a1d27 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 8px; }
+    @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+    select option { background: #1a1d27; color: #f0f0f0; }
+    ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #2a2d3a; border-radius: 2px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
+
+    // ─── STORAGE HELPERS (Claude persistent storage) ─────────────────────────
+    const storage = window.storage;
+
+    const loadData = async (key, fallback) => {
+      try {
+        const res = await storage.get(key);
+        return res ? JSON.parse(res.value) : fallback;
+      } catch { return fallback; }
+    };
+
+    const saveData = async (key, value) => {
+      try { await storage.set(key, JSON.stringify(value)); } catch(e) { console.error('Storage error', e); }
+    };
+
+    // ─── ICONS ────────────────────────────────────────────────────────────────
+    const Icon = ({ d, size = 22, stroke = 2 }) => (
+      <svg width={size} height={size} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={stroke} d={d} />
+      </svg>
+    );
+    const HomeIcon = () => <Icon d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />;
+    const WalletIcon = () => <Icon d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />;
+    const TrendingIcon = () => <Icon d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />;
+    const ChartIcon = () => <Icon d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />;
+    const TargetIcon = () => <Icon d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />;
+    const PlusIcon = () => <Icon d="M12 4v16m8-8H4" size={18} />;
+    const EditIcon = () => <Icon d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" size={16} />;
+    const TrashIcon = () => <Icon d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" size={16} />;
+    const InvestIcon = () => <Icon d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />;
+    const StarIcon = () => <Icon d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" size={14} />;
+    const RefreshIcon = () => <Icon d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" size={16} />;
+    const CloseIcon = () => <Icon d="M6 18L18 6M6 6l12 12" size={18} />;
+
+    // ─── MAIN APP ─────────────────────────────────────────────────────────────
+    const FinanceApp = () => {
+      const [currentView, setCurrentView] = useState('home');
+      const [loading, setLoading] = useState(true);
+      const [syncing, setSyncing] = useState(false);
+
+      const [distribution, setDistribution] = useState({
+        madre: { percentage: 20, label: 'A tu madre' },
+        inversion: { percentage: 10, label: 'Inversión (ETF)' },
+        ahorro: { percentage: 40, label: 'Ahorro intocable' },
+        caprichos: { percentage: 30, label: 'Caprichos/Emergencias' }
+      });
+
+      const [accounts, setAccounts] = useState([
+        { id: 1, name: 'Santander', type: 'current', balance: 1211.53 }
+      ]);
+
+      const [monthlySavings, setMonthlySavings] = useState([]);
+      const [expenseCategories, setExpenseCategories] = useState([
+        { id: 1, name: 'Renta' }, { id: 2, name: 'Agua' }, { id: 3, name: 'Electricidad' },
+        { id: 4, name: 'Council Tax' }, { id: 5, name: 'Gimnasio' }, { id: 6, name: 'Víveres' },
+        { id: 7, name: 'WiFi' }, { id: 8, name: 'Gasolina' }
+      ]);
+      const [monthlyExpenses, setMonthlyExpenses] = useState([]);
+      const [motherDebt, setMotherDebt] = useState({ total: 3800, paid: 0 });
+      const [investments, setInvestments] = useState([]);
+
+      // Load all data from persistent storage
+      useEffect(() => {
+        (async () => {
+          setLoading(true);
+          const [d, a, ms, ec, me, md, inv] = await Promise.all([
+            loadData('fin_distribution', null),
+            loadData('fin_accounts', null),
+            loadData('fin_monthly_savings', []),
+            loadData('fin_expense_cats', null),
+            loadData('fin_monthly_expenses', []),
+            loadData('fin_mother_debt', { total: 3800, paid: 0 }),
+            loadData('fin_investments', []),
+          ]);
+          if (d) setDistribution(d);
+          if (a) setAccounts(a);
+          if (ms) setMonthlySavings(ms);
+          if (ec) setExpenseCategories(ec);
+          if (me) setMonthlyExpenses(me);
+          if (md) setMotherDebt(md);
+          if (inv) setInvestments(inv);
+          setLoading(false);
+        })();
+      }, []);
+
+      // Persist helpers
+      const persist = async (key, val) => { setSyncing(true); await saveData(key, val); setTimeout(() => setSyncing(false), 800); };
+      const updateDistribution = v => { setDistribution(v); persist('fin_distribution', v); };
+      const updateAccounts = v => { setAccounts(v); persist('fin_accounts', v); };
+      const updateMonthlySavings = v => { setMonthlySavings(v); persist('fin_monthly_savings', v); };
+      const updateExpenseCategories = v => { setExpenseCategories(v); persist('fin_expense_cats', v); };
+      const updateMonthlyExpenses = v => { setMonthlyExpenses(v); persist('fin_monthly_expenses', v); };
+      const updateMotherDebt = v => { setMotherDebt(v); persist('fin_mother_debt', v); };
+      const updateInvestments = v => { setInvestments(v); persist('fin_investments', v); };
+
+      const totalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+      const totalSavingsAccounts = accounts.filter(a => a.type === 'savings').reduce((sum, a) => sum + a.balance, 0);
+      const remainingDebt = motherDebt.total - motherDebt.paid;
+
+      if (loading) return (
+        <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',gap:16}}>
+          <div style={{width:48,height:48,borderRadius:'50%',border:'3px solid #2a2d3a',borderTop:'3px solid #6c63ff',animation:'spin 1s linear infinite'}} />
+          <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+          <p style={{color:'#666',fontSize:14}}>Cargando tus datos...</p>
+        </div>
+      );
+
+      const sharedProps = { distribution, updateDistribution, accounts, updateAccounts, monthlySavings, updateMonthlySavings, expenseCategories, updateExpenseCategories, monthlyExpenses, updateMonthlyExpenses, motherDebt, updateMotherDebt, investments, updateInvestments, totalBalance, totalSavingsAccounts, remainingDebt, setCurrentView };
+
+      return (
+        <div style={{minHeight:'100vh',background:'#0f1117',paddingBottom:90}}>
+          {/* Status bar sync indicator */}
+          <div style={{position:'fixed',top:0,right:0,padding:'8px 14px',zIndex:100,display:'flex',alignItems:'center',gap:6}}>
+            <span className="sync-dot" style={{background: syncing ? '#f59e0b' : '#22d3a5'}} />
+            <span style={{fontSize:10,color:'#444',fontFamily:'DM Mono'}}>{syncing ? 'sync...' : 'sync ✓'}</span>
+          </div>
+
+          <div style={{maxWidth:480,margin:'0 auto',padding:'16px 16px 0'}}>
+            {currentView === 'home' && <HomeView {...sharedProps} />}
+            {currentView === 'addSaving' && <AddSavingView {...sharedProps} />}
+            {currentView === 'accounts' && <AccountsView {...sharedProps} />}
+            {currentView === 'expenses' && <ExpensesView {...sharedProps} />}
+            {currentView === 'stats' && <StatsView {...sharedProps} />}
+            {currentView === 'goals' && <GoalsView {...sharedProps} />}
+            {currentView === 'investments' && <InvestmentsView {...sharedProps} />}
+          </div>
+
+          <BottomNav currentView={currentView} setCurrentView={setCurrentView} />
+        </div>
+      );
+    };
+
+    // ─── HOME VIEW ────────────────────────────────────────────────────────────
+    const HomeView = ({ distribution, updateDistribution, accounts, totalBalance, monthlySavings, setCurrentView }) => {
+      const [editingDist, setEditingDist] = useState(null);
+      const [tempPct, setTempPct] = useState('');
+
+      const savePct = (key) => {
+        const v = parseInt(tempPct);
+        if (!isNaN(v) && v >= 0 && v <= 100) {
+          updateDistribution({ ...distribution, [key]: { ...distribution[key], percentage: v } });
+        }
+        setEditingDist(null); setTempPct('');
+      };
+
+      const distColors = { madre: '#ff6b6b', inversion: '#22d3a5', ahorro: '#6c63ff', caprichos: '#f59e0b' };
+
+      return (
+        <div style={{paddingTop:8,display:'flex',flexDirection:'column',gap:16}}>
+          {/* Hero balance */}
+          <div style={{background:'linear-gradient(135deg,#1e1b4b,#312e81)',borderRadius:20,padding:'24px 20px',border:'1px solid #3730a3',position:'relative',overflow:'hidden'}}>
+            <div style={{position:'absolute',top:-20,right:-20,width:100,height:100,borderRadius:'50%',background:'rgba(108,99,255,0.15)'}} />
+            <div style={{position:'absolute',bottom:-30,left:-10,width:80,height:80,borderRadius:'50%',background:'rgba(34,211,165,0.08)'}} />
+            <p style={{fontSize:12,color:'rgba(255,255,255,0.6)',fontWeight:500,letterSpacing:1,textTransform:'uppercase',margin:0}}>Balance Total</p>
+            <p style={{fontSize:42,fontWeight:700,margin:'4px 0 0',fontFamily:'DM Mono',color:'#fff'}}>
+              £{totalBalance.toFixed(2)}
+            </p>
+            <div style={{display:'flex',gap:8,marginTop:14,flexWrap:'wrap'}}>
+              {accounts.map(acc => (
+                <div key={acc.id} style={{background:'rgba(255,255,255,0.08)',borderRadius:10,padding:'6px 12px',backdropFilter:'blur(10px)',border:'1px solid rgba(255,255,255,0.12)'}}>
+                  <p style={{margin:0,fontSize:10,color:'rgba(255,255,255,0.5)',fontWeight:500}}>{acc.name}</p>
+                  <p style={{margin:0,fontSize:15,fontWeight:700,color:'#fff',fontFamily:'DM Mono'}}>£{acc.balance.toFixed(2)}</p>
+                  <p style={{margin:0,fontSize:9,color:'rgba(255,255,255,0.4)'}}>{acc.type === 'current' ? '🏦 Corriente' : acc.type === 'savings' ? '💰 Ahorro' : '📈 Inversión'}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Distribution */}
+          <div className="card" style={{padding:20}}>
+            <h3 style={{margin:'0 0 16px',fontSize:15,fontWeight:600,color:'#f0f0f0'}}>Distribución Mensual</h3>
+            {/* Visual bar */}
+            <div style={{height:8,borderRadius:4,overflow:'hidden',display:'flex',marginBottom:16}}>
+              {Object.entries(distribution).map(([key, item]) => (
+                <div key={key} style={{width:`${item.percentage}%`,background:distColors[key] || '#6c63ff',transition:'width 0.4s'}} />
+              ))}
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              {Object.entries(distribution).map(([key, item]) => (
+                <div key={key} className="card-light" style={{padding:'10px 14px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:10}}>
+                    <div style={{width:10,height:10,borderRadius:'50%',background:distColors[key] || '#6c63ff',flexShrink:0}} />
+                    <span style={{fontSize:14,color:'#c0c0c0'}}>{item.label}</span>
+                  </div>
+                  {editingDist === key ? (
+                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      <input
+                        className="input-dark"
+                        type="number"
+                        inputMode="numeric"
+                        value={tempPct}
+                        onChange={e => setTempPct(e.target.value)}
+                        style={{width:60,padding:'6px 10px',textAlign:'center'}}
+                        autoFocus
+                        onBlur={() => savePct(key)}
+                        onKeyDown={e => { if (e.key === 'Enter') savePct(key); if (e.key === 'Escape') { setEditingDist(null); setTempPct(''); } }}
+                      />
+                      <button onClick={() => savePct(key)} style={{background:'#6c63ff',color:'#fff',border:'none',borderRadius:8,padding:'6px 12px',fontSize:13,fontWeight:600,cursor:'pointer'}}>OK</button>
+                    </div>
+                  ) : (
+                    <div style={{display:'flex',alignItems:'center',gap:10}}>
+                      <span style={{fontSize:18,fontWeight:700,fontFamily:'DM Mono',color:distColors[key] || '#6c63ff'}}>{item.percentage}%</span>
+                      <button onClick={() => { setEditingDist(key); setTempPct(item.percentage.toString()); }} style={{background:'none',border:'none',color:'#444',cursor:'pointer',padding:4}}><EditIcon /></button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Monthly savings */}
+          <div className="card" style={{padding:20}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+              <h3 style={{margin:0,fontSize:15,fontWeight:600,color:'#f0f0f0'}}>Ahorro Mensual</h3>
+              <button onClick={() => setCurrentView('addSaving')} style={{background:'rgba(108,99,255,0.15)',color:'#6c63ff',border:'none',borderRadius:8,padding:'6px 12px',fontSize:13,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
+                <PlusIcon /> Añadir
+              </button>
+            </div>
+            {monthlySavings.length === 0 ? (
+              <p style={{color:'#444',fontSize:13,textAlign:'center',padding:'12px 0',margin:0}}>Sin registros aún</p>
+            ) : (
+              <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                {monthlySavings.slice(-4).reverse().map(r => (
+                  <div key={r.id} className="card-light" style={{padding:'10px 14px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    <span style={{fontSize:14,color:'#c0c0c0'}}>{r.month}</span>
+                    <span style={{fontFamily:'DM Mono',fontWeight:600,color:'#22d3a5'}}>£{r.amount}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    // ─── ADD SAVING ───────────────────────────────────────────────────────────
+    const AddSavingView = ({ monthlySavings, updateMonthlySavings, setCurrentView }) => {
+      const [month, setMonth] = useState('');
+      const [amount, setAmount] = useState('');
+      const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+      const save = () => {
+        if (month && amount) { updateMonthlySavings([...monthlySavings, { id: Date.now(), month, amount: parseFloat(amount) }]); setCurrentView('home'); }
+      };
+      return (
+        <div style={{paddingTop:8}}>
+          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:20}}>
+            <button onClick={() => setCurrentView('home')} style={{background:'#1e2130',border:'1px solid #2a2d3a',color:'#f0f0f0',borderRadius:10,padding:'8px 14px',cursor:'pointer',fontSize:14}}>← Volver</button>
+            <h2 style={{margin:0,fontSize:20,fontWeight:700}}>Registrar Ahorro</h2>
+          </div>
+          <div className="card" style={{padding:20,display:'flex',flexDirection:'column',gap:14}}>
+            <div>
+              <label style={{fontSize:12,color:'#666',display:'block',marginBottom:6,fontWeight:500,textTransform:'uppercase',letterSpacing:0.5}}>Mes</label>
+              <select value={month} onChange={e => setMonth(e.target.value)} className="input-dark" style={{appearance:'none',background:'#0f1117'}}>
+                <option value="">Selecciona mes</option>
+                {months.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{fontSize:12,color:'#666',display:'block',marginBottom:6,fontWeight:500,textTransform:'uppercase',letterSpacing:0.5}}>Cantidad ahorrada (£)</label>
+              <input type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" className="input-dark" />
+            </div>
+            <div style={{display:'flex',gap:10,marginTop:4}}>
+              <button onClick={save} className="btn-primary">Guardar</button>
+              <button onClick={() => setCurrentView('home')} className="btn-secondary">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // ─── ACCOUNTS VIEW ────────────────────────────────────────────────────────
+    const AccountsView = ({ accounts, updateAccounts, totalBalance }) => {
+      const [showAdd, setShowAdd] = useState(false);
+      const [editingId, setEditingId] = useState(null);
+      const [newAcc, setNewAcc] = useState({ name: '', type: 'savings', balance: '' });
+      const [tempBalance, setTempBalance] = useState('');
+
+      const addAcc = () => {
+        if (newAcc.name && newAcc.balance !== '') {
+          updateAccounts([...accounts, { id: Date.now(), ...newAcc, balance: parseFloat(newAcc.balance) }]);
+          setNewAcc({ name: '', type: 'savings', balance: '' }); setShowAdd(false);
+        }
+      };
+      const saveBalance = (id) => {
+        const v = parseFloat(tempBalance);
+        if (!isNaN(v)) updateAccounts(accounts.map(a => a.id === id ? { ...a, balance: v } : a));
+        setEditingId(null); setTempBalance('');
+      };
+      const del = (id) => { if (confirm('¿Eliminar esta cuenta?')) updateAccounts(accounts.filter(a => a.id !== id)); };
+
+      const typeLabel = t => t === 'savings' ? '💰 Ahorro' : t === 'investment' ? '📈 Inversión' : '🏦 Corriente';
+      const typeColor = t => t === 'savings' ? '#22d3a5' : t === 'investment' ? '#f59e0b' : '#6c63ff';
+
+      return (
+        <div style={{paddingTop:8,display:'flex',flexDirection:'column',gap:14}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div>
+              <h2 style={{margin:'0 0 2px',fontSize:22,fontWeight:700}}>Mis Cuentas</h2>
+              <p style={{margin:0,fontSize:13,color:'#555',fontFamily:'DM Mono'}}>Total: £{totalBalance.toFixed(2)}</p>
+            </div>
+            <button onClick={() => setShowAdd(true)} className="btn-primary" style={{width:'auto',padding:'10px 16px',display:'flex',alignItems:'center',gap:6}}>
+              <PlusIcon /> Añadir
+            </button>
+          </div>
+
+          {showAdd && (
+            <div className="card" style={{padding:20,display:'flex',flexDirection:'column',gap:12}}>
+              <h3 style={{margin:'0 0 4px',fontSize:15,fontWeight:600}}>Nueva Cuenta</h3>
+              <input type="text" placeholder="Nombre (ej: Monzo, Revolut)" value={newAcc.name} onChange={e => setNewAcc({...newAcc, name: e.target.value})} className="input-dark" />
+              <select value={newAcc.type} onChange={e => setNewAcc({...newAcc, type: e.target.value})} className="input-dark" style={{appearance:'none',background:'#0f1117'}}>
+                <option value="current">🏦 Cuenta corriente</option>
+                <option value="savings">💰 Cuenta ahorro</option>
+                <option value="investment">📈 Inversión</option>
+              </select>
+              <input type="number" inputMode="decimal" placeholder="Balance inicial £" value={newAcc.balance} onChange={e => setNewAcc({...newAcc, balance: e.target.value})} className="input-dark" />
+              <div style={{display:'flex',gap:10}}><button onClick={addAcc} className="btn-primary">Guardar</button><button onClick={() => setShowAdd(false)} className="btn-secondary">Cancelar</button></div>
+            </div>
+          )}
+
+          {accounts.map(acc => (
+            <div key={acc.id} className="card" style={{padding:20}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14}}>
+                <div style={{display:'flex',alignItems:'center',gap:12}}>
+                  <div style={{width:44,height:44,borderRadius:12,background:`${typeColor(acc.type)}20`,display:'flex',alignItems:'center',justifyContent:'center',border:`1px solid ${typeColor(acc.type)}30`}}>
+                    <span style={{fontSize:20}}>{acc.type === 'savings' ? '💰' : acc.type === 'investment' ? '📈' : '🏦'}</span>
+                  </div>
+                  <div>
+                    <p style={{margin:0,fontWeight:600,fontSize:16,color:'#f0f0f0'}}>{acc.name}</p>
+                    <p style={{margin:0,fontSize:12,color:'#555'}}>{typeLabel(acc.type)}</p>
+                  </div>
+                </div>
+                <button onClick={() => del(acc.id)} style={{background:'none',border:'none',color:'#ff6b6b',cursor:'pointer',padding:4,opacity:0.6}}><TrashIcon /></button>
+              </div>
+              {editingId === acc.id ? (
+                <div style={{display:'flex',gap:8}}>
+                  <input
+                    type="number" inputMode="decimal"
+                    value={tempBalance}
+                    onChange={e => setTempBalance(e.target.value)}
+                    className="input-dark"
+                    autoFocus
+                    onKeyDown={e => { if (e.key === 'Enter') saveBalance(acc.id); if (e.key === 'Escape') { setEditingId(null); setTempBalance(''); } }}
+                  />
+                  <button onClick={() => saveBalance(acc.id)} className="btn-primary" style={{width:'auto',padding:'10px 16px'}}>OK</button>
+                </div>
+              ) : (
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <span style={{fontSize:28,fontWeight:700,fontFamily:'DM Mono',color:typeColor(acc.type)}}>£{acc.balance.toFixed(2)}</span>
+                  <button onClick={() => { setEditingId(acc.id); setTempBalance(acc.balance.toString()); }} style={{background:'#1e2130',border:'1px solid #2a2d3a',color:'#888',borderRadius:8,padding:'8px 12px',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:13}}>
+                    <EditIcon /> Editar
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      );
+    };
+
+    // ─── EXPENSES VIEW ────────────────────────────────────────────────────────
+    const ExpensesView = ({ expenseCategories, updateExpenseCategories, monthlyExpenses, updateMonthlyExpenses }) => {
+      const [showAddCat, setShowAddCat] = useState(false);
+      const [newCatName, setNewCatName] = useState('');
+      const [editingCat, setEditingCat] = useState(null);
+      const [tempCatName, setTempCatName] = useState('');
+      const [selectedMonth, setSelectedMonth] = useState('');
+      // Local amounts map to avoid re-render on each keystroke
+      const [localAmounts, setLocalAmounts] = useState({});
+      const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+      // When month changes, populate local amounts from saved data
+      useEffect(() => {
+        if (!selectedMonth) return;
+        const map = {};
+        expenseCategories.forEach(cat => {
+          const exp = monthlyExpenses.find(e => e.categoryId === cat.id && e.month === selectedMonth);
+          map[cat.id] = exp ? exp.amount.toString() : '';
+        });
+        setLocalAmounts(map);
+      }, [selectedMonth, expenseCategories.length]);
+
+      const getExpense = (catId) => {
+        const exp = monthlyExpenses.find(e => e.categoryId === catId && e.month === selectedMonth);
+        return exp ? exp.amount : 0;
+      };
+
+      const commitAmount = (catId, rawValue) => {
+        const amount = parseFloat(rawValue) || 0;
+        const idx = monthlyExpenses.findIndex(e => e.categoryId === catId && e.month === selectedMonth);
+        let updated;
+        if (idx >= 0) {
+          updated = [...monthlyExpenses];
+          updated[idx] = { ...updated[idx], amount };
+        } else {
+          updated = [...monthlyExpenses, { id: Date.now(), categoryId: catId, month: selectedMonth, amount }];
+        }
+        updateMonthlyExpenses(updated);
+      };
+
+      const addCat = () => {
+        if (newCatName.trim()) {
+          updateExpenseCategories([...expenseCategories, { id: Date.now(), name: newCatName.trim() }]);
+          setNewCatName(''); setShowAddCat(false);
+        }
+      };
+      const saveCatName = (id) => {
+        if (tempCatName.trim()) updateExpenseCategories(expenseCategories.map(c => c.id === id ? { ...c, name: tempCatName.trim() } : c));
+        setEditingCat(null); setTempCatName('');
+      };
+      const delCat = (id) => {
+        if (confirm('¿Eliminar categoría y sus registros?')) {
+          updateExpenseCategories(expenseCategories.filter(c => c.id !== id));
+          updateMonthlyExpenses(monthlyExpenses.filter(e => e.categoryId !== id));
+        }
+      };
+
+      const totalMonth = selectedMonth ? expenseCategories.reduce((s, c) => s + getExpense(c.id), 0) : 0;
+
+      return (
+        <div style={{paddingTop:8,display:'flex',flexDirection:'column',gap:14}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <h2 style={{margin:0,fontSize:22,fontWeight:700}}>Gastos</h2>
+            <button onClick={() => setShowAddCat(true)} className="btn-primary" style={{width:'auto',padding:'10px 16px',display:'flex',alignItems:'center',gap:6}}><PlusIcon /> Categoría</button>
+          </div>
+
+          {showAddCat && (
+            <div className="card" style={{padding:18,display:'flex',flexDirection:'column',gap:10}}>
+              <input type="text" placeholder="Nombre (ej: Netflix, Transporte)" value={newCatName} onChange={e => setNewCatName(e.target.value)} className="input-dark" autoFocus onKeyDown={e => { if (e.key === 'Enter') addCat(); }} />
+              <div style={{display:'flex',gap:10}}><button onClick={addCat} className="btn-primary">Guardar</button><button onClick={() => setShowAddCat(false)} className="btn-secondary">Cancelar</button></div>
+            </div>
+          )}
+
+          {/* Month selector */}
+          <div className="card" style={{padding:18}}>
+            <label style={{fontSize:12,color:'#666',display:'block',marginBottom:8,fontWeight:500,textTransform:'uppercase',letterSpacing:0.5}}>Mes a editar</label>
+            <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="input-dark" style={{appearance:'none',background:'#0f1117'}}>
+              <option value="">Elige un mes</option>
+              {months.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </div>
+
+          {selectedMonth && (
+            <div className="card" style={{padding:20}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+                <h3 style={{margin:0,fontSize:15,fontWeight:600,color:'#f0f0f0'}}>Gastos de {selectedMonth}</h3>
+                <span style={{fontFamily:'DM Mono',fontSize:14,color:'#ff6b6b',fontWeight:600}}>£{totalMonth.toFixed(2)}</span>
+              </div>
+              <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                {expenseCategories.map(cat => (
+                  <div key={cat.id} className="card-light" style={{padding:'10px 14px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
+                    <span style={{fontSize:14,color:'#c0c0c0',flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{cat.name}</span>
+                    <div style={{display:'flex',alignItems:'center',gap:6}}>
+                      <span style={{color:'#444',fontSize:13}}>£</span>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        value={localAmounts[cat.id] ?? ''}
+                        onChange={e => setLocalAmounts(prev => ({...prev, [cat.id]: e.target.value}))}
+                        onBlur={e => commitAmount(cat.id, e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') { commitAmount(cat.id, localAmounts[cat.id] ?? ''); e.target.blur(); } }}
+                        placeholder="0"
+                        className="input-dark"
+                        style={{width:80,textAlign:'right',padding:'8px 10px'}}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Category manager */}
+          <div className="card" style={{padding:20}}>
+            <h3 style={{margin:'0 0 14px',fontSize:15,fontWeight:600,color:'#f0f0f0'}}>Gestionar Categorías</h3>
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              {expenseCategories.map(cat => (
+                <div key={cat.id} className="card-light" style={{padding:'10px 14px',display:'flex',alignItems:'center',gap:8}}>
+                  {editingCat === cat.id ? (
+                    <>
+                      <input type="text" value={tempCatName} onChange={e => setTempCatName(e.target.value)} className="input-dark" style={{flex:1,padding:'8px 10px'}} autoFocus onKeyDown={e => { if (e.key === 'Enter') saveCatName(cat.id); }} />
+                      <button onClick={() => saveCatName(cat.id)} style={{background:'#6c63ff',color:'#fff',border:'none',borderRadius:8,padding:'6px 12px',cursor:'pointer',fontSize:13,fontWeight:600}}>OK</button>
+                    </>
+                  ) : (
+                    <>
+                      <span style={{fontSize:14,color:'#c0c0c0',flex:1}}>{cat.name}</span>
+                      <button onClick={() => { setEditingCat(cat.id); setTempCatName(cat.name); }} style={{background:'none',border:'none',color:'#444',cursor:'pointer',padding:4}}><EditIcon /></button>
+                      <button onClick={() => delCat(cat.id)} style={{background:'none',border:'none',color:'#ff6b6b',cursor:'pointer',padding:4,opacity:0.6}}><TrashIcon /></button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // ─── STATS VIEW ───────────────────────────────────────────────────────────
+    const StatsView = ({ expenseCategories, monthlyExpenses, totalBalance, totalSavingsAccounts }) => {
+      const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+      const catTotals = expenseCategories.map(cat => ({
+        name: cat.name,
+        amount: monthlyExpenses.filter(e => e.categoryId === cat.id).reduce((s, e) => s + e.amount, 0)
+      })).filter(c => c.amount > 0);
+
+      const totalExp = catTotals.reduce((s, c) => s + c.amount, 0);
+      const colors = ['#ff6b6b','#f59e0b','#22d3a5','#6c63ff','#ec4899','#8b5cf6','#10b981','#f97316'];
+
+      const monthlyTotals = months.map(m => ({
+        month: m.slice(0,3),
+        total: expenseCategories.reduce((s, cat) => {
+          const e = monthlyExpenses.find(ex => ex.categoryId === cat.id && ex.month === m);
+          return s + (e ? e.amount : 0);
+        }, 0)
+      })).filter(m => m.total > 0);
+
+      const maxMonthly = Math.max(...monthlyTotals.map(m => m.total), 1);
+
+      return (
+        <div style={{paddingTop:8,display:'flex',flexDirection:'column',gap:14}}>
+          <h2 style={{margin:0,fontSize:22,fontWeight:700}}>Estadísticas</h2>
+
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+            <div className="card" style={{padding:16}}>
+              <p style={{margin:'0 0 4px',fontSize:11,color:'#555',fontWeight:500,textTransform:'uppercase',letterSpacing:0.5}}>Gastos Acumulados</p>
+              <p style={{margin:0,fontSize:22,fontWeight:700,fontFamily:'DM Mono',color:'#ff6b6b'}}>£{totalExp.toFixed(0)}</p>
+            </div>
+            <div className="card" style={{padding:16}}>
+              <p style={{margin:'0 0 4px',fontSize:11,color:'#555',fontWeight:500,textTransform:'uppercase',letterSpacing:0.5}}>En Ahorro</p>
+              <p style={{margin:0,fontSize:22,fontWeight:700,fontFamily:'DM Mono',color:'#22d3a5'}}>£{totalSavingsAccounts.toFixed(0)}</p>
+            </div>
+          </div>
+
+          {monthlyTotals.length > 0 && (
+            <div className="card" style={{padding:20}}>
+              <h3 style={{margin:'0 0 16px',fontSize:15,fontWeight:600,color:'#f0f0f0'}}>Gastos por Mes</h3>
+              <div style={{display:'flex',alignItems:'flex-end',gap:6,height:100}}>
+                {monthlyTotals.map((m, i) => (
+                  <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
+                    <span style={{fontSize:9,color:'#555',fontFamily:'DM Mono'}}>£{m.total.toFixed(0)}</span>
+                    <div style={{width:'100%',background:'#6c63ff',borderRadius:4,height:`${(m.total/maxMonthly)*80}px`,minHeight:4,transition:'height 0.4s'}} />
+                    <span style={{fontSize:9,color:'#555'}}>{m.month}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {catTotals.length > 0 && (
+            <div className="card" style={{padding:20}}>
+              <h3 style={{margin:'0 0 16px',fontSize:15,fontWeight:600,color:'#f0f0f0'}}>Por Categoría</h3>
+              <div style={{height:8,borderRadius:4,overflow:'hidden',display:'flex',marginBottom:16}}>
+                {catTotals.map((c, i) => (
+                  <div key={i} style={{flex:c.amount,background:colors[i%colors.length]}} />
+                ))}
+              </div>
+              <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                {catTotals.sort((a,b) => b.amount - a.amount).map((c, i) => (
+                  <div key={i} style={{display:'flex',alignItems:'center',gap:10}}>
+                    <div style={{width:10,height:10,borderRadius:3,background:colors[i%colors.length],flexShrink:0}} />
+                    <span style={{fontSize:13,color:'#c0c0c0',flex:1}}>{c.name}</span>
+                    <span style={{fontSize:13,fontFamily:'DM Mono',color:'#f0f0f0',fontWeight:500}}>£{c.amount.toFixed(2)}</span>
+                    <span style={{fontSize:11,color:'#555',fontFamily:'DM Mono',width:36,textAlign:'right'}}>{((c.amount/totalExp)*100).toFixed(0)}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    // ─── GOALS VIEW ───────────────────────────────────────────────────────────
+    const GoalsView = ({ motherDebt, updateMotherDebt, remainingDebt }) => {
+      const [payAmt, setPayAmt] = useState('');
+      const [editing, setEditing] = useState(false);
+      const [tempTotal, setTempTotal] = useState('');
+      const [tempPaid, setTempPaid] = useState('');
+      const pct = Math.min((motherDebt.paid / motherDebt.total) * 100, 100);
+
+      const addPayment = () => {
+        const v = parseFloat(payAmt);
+        if (v > 0 && v <= remainingDebt) { updateMotherDebt({ ...motherDebt, paid: motherDebt.paid + v }); setPayAmt(''); }
+      };
+      const saveDebt = () => {
+        const t = parseFloat(tempTotal), p = parseFloat(tempPaid);
+        if (t >= 0 && p >= 0 && p <= t) updateMotherDebt({ total: t, paid: p });
+        setEditing(false);
+      };
+
+      return (
+        <div style={{paddingTop:8,display:'flex',flexDirection:'column',gap:14}}>
+          <h2 style={{margin:0,fontSize:22,fontWeight:700}}>Objetivos</h2>
+
+          <div className="card" style={{padding:20}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+              <h3 style={{margin:0,fontSize:15,fontWeight:600,color:'#f0f0f0'}}>💸 Deuda con tu madre</h3>
+              {!editing && <button onClick={() => { setEditing(true); setTempTotal(motherDebt.total.toString()); setTempPaid(motherDebt.paid.toString()); }} style={{background:'none',border:'none',color:'#444',cursor:'pointer'}}><EditIcon /></button>}
+            </div>
+
+            {editing ? (
+              <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                <div><label style={{fontSize:12,color:'#666',display:'block',marginBottom:6}}>Deuda total (£)</label><input type="number" inputMode="decimal" value={tempTotal} onChange={e => setTempTotal(e.target.value)} className="input-dark" /></div>
+                <div><label style={{fontSize:12,color:'#666',display:'block',marginBottom:6}}>Ya pagado (£)</label><input type="number" inputMode="decimal" value={tempPaid} onChange={e => setTempPaid(e.target.value)} className="input-dark" /></div>
+                <div style={{display:'flex',gap:10}}><button onClick={saveDebt} className="btn-primary">Guardar</button><button onClick={() => setEditing(false)} className="btn-secondary">Cancelar</button></div>
+              </div>
+            ) : (
+              <>
+                <div style={{marginBottom:16}}>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}>
+                    <span style={{fontSize:12,color:'#666'}}>Progreso</span>
+                    <span style={{fontSize:12,fontFamily:'DM Mono',color:'#6c63ff',fontWeight:600}}>{pct.toFixed(1)}%</span>
+                  </div>
+                  <div style={{height:10,background:'#1e2130',borderRadius:5,overflow:'hidden',border:'1px solid #2a2d3a'}}>
+                    <div style={{height:'100%',background:'linear-gradient(90deg,#6c63ff,#22d3a5)',width:`${pct}%`,borderRadius:5,transition:'width 0.6s'}} />
+                  </div>
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:16}}>
+                  {[['Total','#f0f0f0',motherDebt.total],['Pagado','#22d3a5',motherDebt.paid]].map(([label,color,val]) => (
+                    <div key={label} className="card-light" style={{padding:'12px 14px'}}>
+                      <p style={{margin:'0 0 4px',fontSize:11,color:'#555',fontWeight:500}}>{label}</p>
+                      <p style={{margin:0,fontSize:18,fontWeight:700,fontFamily:'DM Mono',color}}>£{val}</p>
+                    </div>
+                  ))}
+                  <div className="card-light" style={{padding:'12px 14px',gridColumn:'span 2'}}>
+                    <p style={{margin:'0 0 4px',fontSize:11,color:'#555',fontWeight:500}}>Restante</p>
+                    <p style={{margin:0,fontSize:22,fontWeight:700,fontFamily:'DM Mono',color:'#ff6b6b'}}>£{remainingDebt.toFixed(2)}</p>
+                  </div>
+                </div>
+                <div style={{borderTop:'1px solid #2a2d3a',paddingTop:14}}>
+                  <p style={{fontSize:12,color:'#666',marginBottom:8}}>Registrar pago</p>
+                  <div style={{display:'flex',gap:8}}>
+                    <input type="number" inputMode="decimal" placeholder="Cantidad £" value={payAmt} onChange={e => setPayAmt(e.target.value)} className="input-dark" onKeyDown={e => { if (e.key === 'Enter') addPayment(); }} />
+                    <button onClick={addPayment} className="btn-primary" style={{width:'auto',padding:'10px 20px',whiteSpace:'nowrap'}}>+ Añadir</button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    // ─── INVESTMENTS VIEW ─────────────────────────────────────────────────────
+    const InvestmentsView = ({ investments, updateInvestments }) => {
+      const [showAdd, setShowAdd] = useState(false);
+      const [selectedInv, setSelectedInv] = useState(null);
+      const [newInv, setNewInv] = useState({ ticker: '', company: '', shares: '', buyPrice: '', buyDate: '', currency: 'GBP' });
+      const [prices, setPrices] = useState({});
+      const [loadingPrices, setLoadingPrices] = useState({});
+      const [analysis, setAnalysis] = useState(null);
+      const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+      const [chartData, setChartData] = useState(null);
+      const [loadingChart, setLoadingChart] = useState(false);
+
+      // Fetch price from Yahoo Finance via proxy-free alternative
+      const fetchPrice = async (ticker) => {
+        setLoadingPrices(p => ({...p, [ticker]: true}));
+        try {
+          const url = `https://api.anthropic.com/v1/messages`;
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: 'claude-sonnet-4-20250514',
+              max_tokens: 200,
+              tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+              messages: [{ role: 'user', content: `Search for the current stock price of ${ticker}. Return ONLY a JSON object like: {"price": 123.45, "change": 1.23, "changePercent": 0.5, "currency": "USD"} with no other text.` }]
+            })
+          });
+          const data = await res.json();
+          const text = data.content.map(c => c.text || '').join('');
+          const match = text.match(/\{[^}]+\}/);
+          if (match) {
+            const parsed = JSON.parse(match[0]);
+            setPrices(p => ({...p, [ticker]: parsed}));
+          }
+        } catch(e) {
+          setPrices(p => ({...p, [ticker]: { price: null, error: true }}));
+        }
+        setLoadingPrices(p => ({...p, [ticker]: false}));
+      };
+
+      const fetchAllPrices = () => {
+        investments.forEach(inv => fetchPrice(inv.ticker));
+      };
+
+      useEffect(() => { if (investments.length > 0) fetchAllPrices(); }, [investments.length]);
+
+      const fetchChart = async (ticker) => {
+        setLoadingChart(true);
+        try {
+          const res = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: 'claude-sonnet-4-20250514',
+              max_tokens: 500,
+              tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+              messages: [{ role: 'user', content: `Search for ${ticker} stock price history for the last 30 days. Give me approximate weekly closing prices. Return ONLY a JSON array like: [{"date":"Jan W1","price":150.2},{"date":"Jan W2","price":152.1},...] for the last 8 data points. No other text.` }]
+            })
+          });
+          const data = await res.json();
+          const text = data.content.map(c => c.text || '').join('');
+          const match = text.match(/\[[^\]]+\]/s);
+          if (match) setChartData(JSON.parse(match[0]));
+        } catch(e) {}
+        setLoadingChart(false);
+      };
+
+      const getAnalysis = async (inv) => {
+        setLoadingAnalysis(true); setAnalysis(null);
+        const p = prices[inv.ticker];
+        const currentVal = p?.price ? (p.price * parseFloat(inv.shares)) : null;
+        const invested = parseFloat(inv.shares) * parseFloat(inv.buyPrice);
+        const pl = currentVal ? currentVal - invested : null;
+        const plPct = pl ? ((pl / invested) * 100).toFixed(1) : null;
+
+        try {
+          const res = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: 'claude-sonnet-4-20250514',
+              max_tokens: 600,
+              tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+              messages: [{ role: 'user', content: `Search for recent news and analysis about ${inv.ticker} (${inv.company}) stock. The user invested ${inv.currency}${invested.toFixed(2)} at ${inv.buyPrice} per share on ${inv.buyDate}. ${pl !== null ? `Current P&L: ${plPct}% (${pl >= 0 ? '+' : ''}${inv.currency}${pl.toFixed(2)}).` : ''} Give me a brief, honest opinion in 3-4 sentences: recent performance, any notable news, and whether you'd lean towards hold/buy more/trim. Be concise and direct. Speak in first person casual Spanish (tuteo). Mention this is just your opinion, not financial advice.` }]
+            })
+          });
+          const data = await res.json();
+          const text = data.content.map(c => c.text || '').join('');
+          setAnalysis(text);
+        } catch(e) { setAnalysis('Error al obtener análisis. Inténtalo de nuevo.'); }
+        setLoadingAnalysis(false);
+      };
+
+      const addInvestment = () => {
+        if (newInv.ticker && newInv.shares && newInv.buyPrice) {
+          const inv = { id: Date.now(), ...newInv, ticker: newInv.ticker.toUpperCase(), shares: parseFloat(newInv.shares), buyPrice: parseFloat(newInv.buyPrice) };
+          updateInvestments([...investments, inv]);
+          setNewInv({ ticker: '', company: '', shares: '', buyPrice: '', buyDate: '', currency: 'GBP' });
+          setShowAdd(false);
+          setTimeout(() => fetchPrice(inv.ticker), 500);
+        }
+      };
+
+      const delInv = (id) => { if (confirm('¿Eliminar esta inversión?')) updateInvestments(investments.filter(i => i.id !== id)); };
+
+      const totalInvested = investments.reduce((s, i) => s + i.shares * i.buyPrice, 0);
+      const totalCurrent = investments.reduce((s, i) => {
+        const p = prices[i.ticker];
+        return s + (p?.price ? p.price * i.shares : i.shares * i.buyPrice);
+      }, 0);
+      const totalPL = totalCurrent - totalInvested;
+      const totalPLPct = totalInvested > 0 ? ((totalPL / totalInvested) * 100) : 0;
+
+      // Mini sparkline SVG
+      const Sparkline = ({ data, positive }) => {
+        if (!data || data.length < 2) return null;
+        const prices = data.map(d => d.price);
+        const min = Math.min(...prices), max = Math.max(...prices);
+        const range = max - min || 1;
+        const w = 200, h = 60;
+        const points = prices.map((p, i) => `${(i / (prices.length-1)) * w},${h - ((p-min)/range)*h}`).join(' ');
+        return (
+          <svg width={w} height={h} style={{display:'block'}}>
+            <polyline points={points} fill="none" stroke={positive ? '#22d3a5' : '#ff6b6b'} strokeWidth={2} strokeLinejoin="round" />
+          </svg>
+        );
+      };
+
+      return (
+        <div style={{paddingTop:8,display:'flex',flexDirection:'column',gap:14}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <h2 style={{margin:0,fontSize:22,fontWeight:700}}>Inversiones</h2>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={fetchAllPrices} style={{background:'#1e2130',border:'1px solid #2a2d3a',color:'#888',borderRadius:10,padding:'10px 12px',cursor:'pointer',display:'flex',alignItems:'center'}}><RefreshIcon /></button>
+              <button onClick={() => setShowAdd(true)} className="btn-primary" style={{width:'auto',padding:'10px 16px',display:'flex',alignItems:'center',gap:6}}><PlusIcon /> Añadir</button>
+            </div>
+          </div>
+
+          {/* Portfolio summary */}
+          {investments.length > 0 && (
+            <div style={{background:'linear-gradient(135deg,#0f2922,#0d1f2d)',borderRadius:20,padding:'20px',border:'1px solid #1a3a30'}}>
+              <p style={{margin:'0 0 2px',fontSize:11,color:'#555',textTransform:'uppercase',letterSpacing:1}}>Portfolio Total</p>
+              <p style={{margin:'0 0 12px',fontSize:36,fontWeight:700,fontFamily:'DM Mono',color:'#fff'}}>£{totalCurrent.toFixed(2)}</p>
+              <div style={{display:'flex',gap:16}}>
+                <div><p style={{margin:'0 0 2px',fontSize:11,color:'#555'}}>Invertido</p><p style={{margin:0,fontFamily:'DM Mono',fontWeight:600,color:'#f0f0f0',fontSize:15}}>£{totalInvested.toFixed(2)}</p></div>
+                <div><p style={{margin:'0 0 2px',fontSize:11,color:'#555'}}>P&L</p><p style={{margin:0,fontFamily:'DM Mono',fontWeight:600,color:totalPL>=0?'#22d3a5':'#ff6b6b',fontSize:15}}>{totalPL>=0?'+':''}£{totalPL.toFixed(2)} ({totalPLPct>=0?'+':''}{totalPLPct.toFixed(1)}%)</p></div>
+              </div>
+            </div>
+          )}
+
+          {showAdd && (
+            <div className="card" style={{padding:20,display:'flex',flexDirection:'column',gap:12}}>
+              <h3 style={{margin:'0 0 4px',fontSize:15,fontWeight:600}}>Nueva Posición</h3>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                <div><label style={{fontSize:11,color:'#555',display:'block',marginBottom:5}}>Ticker (ej: AAPL)</label><input type="text" placeholder="GOOGL" value={newInv.ticker} onChange={e => setNewInv({...newInv, ticker: e.target.value.toUpperCase()})} className="input-dark" style={{textTransform:'uppercase'}} /></div>
+                <div><label style={{fontSize:11,color:'#555',display:'block',marginBottom:5}}>Empresa</label><input type="text" placeholder="Google" value={newInv.company} onChange={e => setNewInv({...newInv, company: e.target.value})} className="input-dark" /></div>
+                <div><label style={{fontSize:11,color:'#555',display:'block',marginBottom:5}}>Nº acciones</label><input type="number" inputMode="decimal" placeholder="10" value={newInv.shares} onChange={e => setNewInv({...newInv, shares: e.target.value})} className="input-dark" /></div>
+                <div><label style={{fontSize:11,color:'#555',display:'block',marginBottom:5}}>Precio compra</label><input type="number" inputMode="decimal" placeholder="150.00" value={newInv.buyPrice} onChange={e => setNewInv({...newInv, buyPrice: e.target.value})} className="input-dark" /></div>
+                <div><label style={{fontSize:11,color:'#555',display:'block',marginBottom:5}}>Fecha compra</label><input type="text" placeholder="Enero 2025" value={newInv.buyDate} onChange={e => setNewInv({...newInv, buyDate: e.target.value})} className="input-dark" /></div>
+                <div><label style={{fontSize:11,color:'#555',display:'block',marginBottom:5}}>Moneda</label>
+                  <select value={newInv.currency} onChange={e => setNewInv({...newInv, currency: e.target.value})} className="input-dark" style={{appearance:'none',background:'#0f1117'}}>
+                    <option value="GBP">£ GBP</option><option value="EUR">€ EUR</option><option value="USD">$ USD</option>
+                  </select>
+                </div>
+              </div>
+              <div style={{display:'flex',gap:10,marginTop:4}}><button onClick={addInvestment} className="btn-primary">Añadir</button><button onClick={() => setShowAdd(false)} className="btn-secondary">Cancelar</button></div>
+            </div>
+          )}
+
+          {investments.length === 0 && !showAdd && (
+            <div className="card" style={{padding:40,textAlign:'center'}}>
+              <p style={{fontSize:36,margin:'0 0 8px'}}>📈</p>
+              <p style={{color:'#555',fontSize:14,margin:0}}>Sin inversiones aún.</p>
+              <p style={{color:'#444',fontSize:12,margin:'4px 0 0'}}>Añade tus posiciones para hacer seguimiento.</p>
+            </div>
+          )}
+
+          {/* Investment cards */}
+          {investments.map(inv => {
+            const p = prices[inv.ticker];
+            const isLoading = loadingPrices[inv.ticker];
+            const invested = inv.shares * inv.buyPrice;
+            const currentVal = p?.price ? p.price * inv.shares : null;
+            const pl = currentVal ? currentVal - invested : null;
+            const plPct = pl ? ((pl / invested) * 100) : null;
+            const isPos = pl !== null ? pl >= 0 : true;
+
+            return (
+              <div key={inv.id} className="card" style={{padding:20}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14}}>
+                  <div>
+                    <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+                      <span style={{fontSize:18,fontWeight:800,fontFamily:'DM Mono',color:'#f0f0f0'}}>{inv.ticker}</span>
+                      <span className="tag">{inv.currency}</span>
+                    </div>
+                    <p style={{margin:0,fontSize:13,color:'#666'}}>{inv.company || 'Sin nombre'}</p>
+                    <p style={{margin:'2px 0 0',fontSize:11,color:'#444'}}>Comprado: {inv.buyDate || 'N/A'} · {inv.shares} acc. @ {inv.currency === 'GBP' ? '£' : inv.currency === 'EUR' ? '€' : '$'}{inv.buyPrice}</p>
+                  </div>
+                  <button onClick={() => delInv(inv.id)} style={{background:'none',border:'none',color:'#ff6b6b',cursor:'pointer',opacity:0.6,padding:4}}><TrashIcon /></button>
+                </div>
+
+                {/* Price block */}
+                <div className="card-light" style={{padding:'12px 14px',marginBottom:12}}>
+                  {isLoading ? (
+                    <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                      <div className="loading-shimmer" style={{width:80,height:24}} />
+                      <span style={{fontSize:12,color:'#555'}}>Actualizando...</span>
+                    </div>
+                  ) : p?.error ? (
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                      <span style={{fontSize:12,color:'#ff6b6b'}}>Error al cargar precio</span>
+                      <button onClick={() => fetchPrice(inv.ticker)} style={{background:'none',border:'none',color:'#6c63ff',cursor:'pointer',fontSize:12}}>Reintentar</button>
+                    </div>
+                  ) : p?.price ? (
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-end'}}>
+                      <div>
+                        <p style={{margin:'0 0 2px',fontSize:11,color:'#555'}}>Precio actual</p>
+                        <p style={{margin:0,fontSize:24,fontWeight:700,fontFamily:'DM Mono',color:'#f0f0f0'}}>{inv.currency === 'GBP' ? '£' : inv.currency === 'EUR' ? '€' : '$'}{p.price?.toFixed(2)}</p>
+                      </div>
+                      <div style={{textAlign:'right'}}>
+                        <span className={isPos ? 'tag-green' : 'tag-red'}>{isPos?'▲':'▼'} {Math.abs(p.changePercent || 0).toFixed(2)}% hoy</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                      <span style={{fontSize:13,color:'#555'}}>Sin precio</span>
+                      <button onClick={() => fetchPrice(inv.ticker)} style={{background:'none',border:'none',color:'#6c63ff',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12}}><RefreshIcon /> Cargar</button>
+                    </div>
+                  )}
+                </div>
+
+                {/* P&L */}
+                {pl !== null && (
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
+                    {[['Invertido',`${inv.currency === 'GBP' ? '£' : inv.currency === 'EUR' ? '€' : '$'}${invested.toFixed(2)}`,'#888'],['Ahora',`${inv.currency === 'GBP' ? '£' : inv.currency === 'EUR' ? '€' : '$'}${currentVal.toFixed(2)}`,isPos?'#22d3a5':'#ff6b6b'],['P&L',`${pl>=0?'+':''}${plPct.toFixed(1)}%`,isPos?'#22d3a5':'#ff6b6b']].map(([label,val,color]) => (
+                      <div key={label} className="card-light" style={{padding:'8px 10px',textAlign:'center'}}>
+                        <p style={{margin:'0 0 2px',fontSize:9,color:'#555',fontWeight:500}}>{label}</p>
+                        <p style={{margin:0,fontSize:12,fontWeight:700,fontFamily:'DM Mono',color}}>{val}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Chart & Analysis buttons */}
+                <div style={{display:'flex',gap:8}}>
+                  <button
+                    onClick={() => { if (selectedInv === inv.id) { setSelectedInv(null); setChartData(null); setAnalysis(null); } else { setSelectedInv(inv.id); setAnalysis(null); setChartData(null); fetchChart(inv.ticker); } }}
+                    style={{flex:1,background:'rgba(108,99,255,0.1)',color:'#6c63ff',border:'1px solid rgba(108,99,255,0.2)',borderRadius:10,padding:'10px',cursor:'pointer',fontSize:12,fontWeight:600,display:'flex',alignItems:'center',justifyContent:'center',gap:6}}
+                  >
+                    {selectedInv === inv.id ? <CloseIcon /> : <ChartIcon />} Gráfico
+                  </button>
+                  <button
+                    onClick={() => { setSelectedInv(inv.id); getAnalysis(inv); }}
+                    style={{flex:1,background:'rgba(34,211,165,0.08)',color:'#22d3a5',border:'1px solid rgba(34,211,165,0.15)',borderRadius:10,padding:'10px',cursor:'pointer',fontSize:12,fontWeight:600,display:'flex',alignItems:'center',justifyContent:'center',gap:6}}
+                  >
+                    <StarIcon /> Claude
+                  </button>
+                </div>
+
+                {/* Chart */}
+                {selectedInv === inv.id && (
+                  <div style={{marginTop:12}}>
+                    {loadingChart ? (
+                      <div style={{padding:20,textAlign:'center'}}>
+                        <div className="loading-shimmer" style={{height:60,borderRadius:8}} />
+                        <p style={{fontSize:12,color:'#555',marginTop:8}}>Cargando historial...</p>
+                      </div>
+                    ) : chartData ? (
+                      <div className="card-light" style={{padding:16}}>
+                        <p style={{fontSize:11,color:'#555',marginBottom:8,fontWeight:500}}>Últimas semanas</p>
+                        <Sparkline data={chartData} positive={isPos} />
+                        <div style={{display:'flex',justifyContent:'space-between',marginTop:4}}>
+                          <span style={{fontSize:10,color:'#555',fontFamily:'DM Mono'}}>{chartData[0]?.date}</span>
+                          <span style={{fontSize:10,color:'#555',fontFamily:'DM Mono'}}>{chartData[chartData.length-1]?.date}</span>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+
+                {/* Claude Analysis */}
+                {selectedInv === inv.id && (loadingAnalysis || analysis) && (
+                  <div style={{marginTop:12,background:'rgba(34,211,165,0.05)',border:'1px solid rgba(34,211,165,0.12)',borderRadius:12,padding:16}}>
+                    <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
+                      <StarIcon />
+                      <span style={{fontSize:12,fontWeight:600,color:'#22d3a5'}}>Opinión de Claude</span>
+                      <span style={{fontSize:10,color:'#444'}}>(no es asesoramiento financiero)</span>
+                    </div>
+                    {loadingAnalysis ? (
+                      <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                        {[100,80,90,60].map((w,i) => <div key={i} className="loading-shimmer" style={{height:12,borderRadius:4,width:`${w}%`}} />)}
+                      </div>
+                    ) : (
+                      <p style={{margin:0,fontSize:13,color:'#b0b0b0',lineHeight:1.6}}>{analysis}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      );
+    };
+
+    // ─── BOTTOM NAV ───────────────────────────────────────────────────────────
+    const BottomNav = ({ currentView, setCurrentView }) => {
+      const tabs = [
+        { id: 'home', label: 'Inicio', icon: <HomeIcon /> },
+        { id: 'accounts', label: 'Cuentas', icon: <WalletIcon /> },
+        { id: 'expenses', label: 'Gastos', icon: <TrendingIcon /> },
+        { id: 'investments', label: 'Inversión', icon: <InvestIcon /> },
+        { id: 'stats', label: 'Stats', icon: <ChartIcon /> },
+        { id: 'goals', label: 'Metas', icon: <TargetIcon /> },
+      ];
+      const active = (id) => currentView === id || (id === 'home' && currentView === 'addSaving');
+
+      return (
+        <div style={{position:'fixed',bottom:0,left:0,right:0,background:'rgba(15,17,23,0.95)',backdropFilter:'blur(20px)',borderTop:'1px solid #1e2130',padding:'8px 4px',zIndex:100}}>
+          <div style={{display:'flex',justifyContent:'space-around',maxWidth:480,margin:'0 auto'}}>
+            {tabs.map(tab => (
+              <button key={tab.id} onClick={() => setCurrentView(tab.id)} className={`nav-btn ${active(tab.id) ? 'active' : ''}`}>
+                {tab.icon}
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    };
+
+    ReactDOM.render(<FinanceApp />, document.getElementById('root'));
+  </script>
+</body>
+</html>
