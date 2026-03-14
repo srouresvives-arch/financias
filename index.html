@@ -50,12 +50,18 @@
     .msc::-webkit-scrollbar{display:none}
     .mc{scroll-snap-align:start;flex-shrink:0;padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;transition:all .2s;border:1px solid transparent}
     select option{background:#1a1d27;color:#f0f0f0}
+    @keyframes slideUp{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    .fab{position:fixed;bottom:100px;right:20px;width:56px;height:56px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(0,0,0,.4);transition:transform .15s;z-index:99}
+    .fab:active{transform:scale(.9)}
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .2s}
+    .modal-sheet{width:100%;max-width:480px;border-radius:24px 24px 0 0;padding:24px 20px 40px;animation:slideUp .3s cubic-bezier(.34,1.56,.64,1)}
   </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const {useState,useEffect,createContext,useContext}=React;
+const {useState,useEffect,useRef,createContext,useContext}=React;
 
 const THEMES={
   midnight:{name:'Midnight',emoji:'🌙',bg:'#0f1117',bg2:'#1a1d27',bg3:'#1e2130',border:'#2a2d3a',text:'#f0f0f0',text2:'#c0c0c0',text3:'#666',accent:'#6c63ff',accent2:'rgba(108,99,255,.15)',green:'#22d3a5',red:'#ff6b6b',yellow:'#f59e0b',navBg:'rgba(15,17,23,.96)',hero:'linear-gradient(135deg,#1e1b4b,#312e81)',heroBorder:'#3730a3',tag:'rgba(108,99,255,.15)',tagText:'#6c63ff',shimmer:'linear-gradient(90deg,#1a1d27 25%,#2a2d3a 50%,#1a1d27 75%)'},
@@ -107,7 +113,62 @@ const DelIc=()=><Ic d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995
 const StarIc=()=><Ic d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" s={14}/>;
 const RefIc=()=><Ic d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" s={16}/>;
 const OutIc=()=><Ic d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" s={18}/>;
+const ZapIc=()=><Ic d="M13 10V3L4 14h7v7l9-11h-7z" s={20}/>;
 const Spin=({s=38,c='#6c63ff'})=><div style={{width:s,height:s,border:`3px solid rgba(255,255,255,.1)`,borderTop:`3px solid ${c}`,borderRadius:'50%',animation:'spin 1s linear infinite',flexShrink:0}}/>;
+
+const QuickExpenseModal=({cats,exps,uExps,mlist,exRate,currency,theme,onClose})=>{
+  const [amt,setAmt]=useState('');
+  const [cur,setCur]=useState(currency);
+  const [selMonth,setSelMonth]=useState('');
+  const [selCatId,setSelCatId]=useState(cats[0]?.id||null);
+  const amtRef=useRef(null);
+  useEffect(()=>{setTimeout(()=>amtRef.current?.focus(),300);},[]);
+  const today=new Date();
+  const defKey=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
+  const defMonth=mlist.find(m=>m.key===defKey)||mlist[0];
+  const confirm=()=>{
+    if(!selCatId||!amt)return;
+    const gbp=cur==='EUR'?(parseFloat(amt)||0)/exRate:(parseFloat(amt)||0);
+    const mk=selMonth||defMonth?.key;
+    if(!mk)return;
+    const idx=exps.findIndex(x=>x.cid===selCatId&&x.mk===mk);
+    let up;
+    if(idx>=0){up=[...exps];up[idx]={...up[idx],amountGBP:(up[idx].amountGBP||0)+gbp};}
+    else up=[...exps,{id:Date.now(),cid:selCatId,mk,amountGBP:gbp}];
+    uExps(up);onClose();
+  };
+  return(
+    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose()}}>
+      <div className="modal-sheet" style={{background:theme.bg2,border:`1px solid ${theme.border}`}}>
+        <div style={{width:40,height:4,borderRadius:2,background:theme.border,margin:'0 auto 20px'}}/>
+        <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:20}}>
+          <div style={{width:38,height:38,borderRadius:12,background:theme.accent2,display:'flex',alignItems:'center',justifyContent:'center',color:theme.accent}}><ZapIc/></div>
+          <p style={{margin:0,fontWeight:700,fontSize:17,color:theme.text}}>Gasto rápido</p>
+        </div>
+        <div style={{display:'flex',flexDirection:'column',gap:12}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr auto',gap:10}}>
+            <div><label style={{fontSize:11,color:theme.text3,display:'block',marginBottom:5,fontWeight:500,textTransform:'uppercase',letterSpacing:.5}}>Cantidad</label>
+              <input ref={amtRef} id="qamt" type="number" inputMode="decimal" value={amt} onChange={e=>setAmt(e.target.value)} placeholder="0.00" className="inp" style={{background:theme.bg,border:`1px solid ${theme.border}`,color:theme.text}} onKeyDown={e=>e.key==='Enter'&&confirm()}/></div>
+            <div style={{paddingTop:20}}><select value={cur} onChange={e=>setCur(e.target.value)} className="inp" style={{background:theme.bg,border:`1px solid ${theme.border}`,color:theme.text,appearance:'none',width:80}}><option value="GBP">£ GBP</option><option value="EUR">€ EUR</option></select></div>
+          </div>
+          <div><label style={{fontSize:11,color:theme.text3,display:'block',marginBottom:5,fontWeight:500,textTransform:'uppercase',letterSpacing:.5}}>Mes</label>
+            <select value={selMonth||defMonth?.key||''} onChange={e=>setSelMonth(e.target.value)} className="inp" style={{background:theme.bg,border:`1px solid ${theme.border}`,color:theme.text,appearance:'none'}}>{mlist.map(m=><option key={m.key} value={m.key}>{m.label}</option>)}</select>
+          </div>
+          <div><label style={{fontSize:11,color:theme.text3,display:'block',marginBottom:8,fontWeight:500,textTransform:'uppercase',letterSpacing:.5}}>Categoría</label>
+            <div style={{display:'flex',flexDirection:'column',gap:7,maxHeight:200,overflowY:'auto'}}>
+              {cats.map(cat=>(<button key={cat.id} onClick={()=>setSelCatId(cat.id)} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'11px 14px',border:`2px solid ${selCatId===cat.id?theme.accent:theme.border}`,borderRadius:12,background:selCatId===cat.id?theme.accent2:theme.bg3,cursor:'pointer',transition:'all .15s'}}>
+                <span style={{fontSize:14,fontWeight:selCatId===cat.id?600:400,color:selCatId===cat.id?theme.accent:theme.text2}}>{cat.name}</span>
+                {selCatId===cat.id&&<span style={{color:theme.accent,fontSize:16}}>✓</span>}
+              </button>))}
+            </div>
+          </div>
+          <button onClick={confirm} disabled={!amt||!selCatId} style={{background:theme.accent,color:'#fff',border:'none',borderRadius:12,padding:'14px',fontFamily:'DM Sans',fontWeight:700,fontSize:15,cursor:'pointer',width:'100%',marginTop:4,opacity:(!amt||!selCatId)?.5:1}}>Añadir gasto</button>
+          <button onClick={onClose} style={{background:'none',border:'none',color:theme.text3,fontFamily:'DM Sans',fontSize:14,cursor:'pointer',padding:'4px 8px',width:'100%'}}>Cancelar</button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const Login=()=>{
   const t=THEMES.midnight;
@@ -165,6 +226,7 @@ const App=()=>{
   const [goals,setGoals]=useState([]);
   const [invs,setInvs]=useState([]);
   const [mlist,setMlist]=useState(genMonths());
+  const [showQuick,setShowQuick]=useState(false);
 
   useEffect(()=>{
     if(!window._onAuth)return;
@@ -251,6 +313,8 @@ const App=()=>{
           {view==='settings'&&<SettingsV {...sp}/>}
         </div>
         <BottomNav view={view} setView={setView} theme={theme}/>
+        <button className="fab" onClick={()=>setShowQuick(true)} style={{background:theme.accent,color:'#fff',boxShadow:`0 4px 24px ${theme.accent}55`}}><ZapIc/></button>
+        {showQuick&&<QuickExpenseModal cats={cats} exps={exps} uExps={uExps} mlist={mlist} exRate={exRate} currency={currency} theme={theme} onClose={()=>setShowQuick(false)}/>}
       </div>
     </ThemeCtx.Provider>
   );
@@ -263,10 +327,48 @@ const Sel=({children,style,...p})=>{const {theme}=useTheme();return<select class
 const Btn=({children,onClick,style})=>{const {theme}=useTheme();return<button onClick={onClick} className="bp" style={{background:theme.accent,color:'#fff',...style}}>{children}</button>};
 const BtnS=({children,onClick,style})=>{const {theme}=useTheme();return<button onClick={onClick} className="bs" style={{background:theme.bg3,color:theme.text,...style}}>{children}</button>};
 
-const HomeV=({dist,uDist,accs,totBal,savs,setView,fmt,theme})=>{
+const HomeV=({dist,uDist,accs,totBal,cats,exps,goals,invs,fmt,fmtN,sym,exRate,currency,theme})=>{
   const [ek,setEk]=useState(null);const [tp,setTp]=useState('');
+  const [chatMsg,setChatMsg]=useState('');const [chatHistory,setChatHistory]=useState([]);const [chatLd,setChatLd]=useState(false);
+  const chatEndRef=useRef(null);
   const saveP=k=>{const v=parseInt(tp);if(!isNaN(v)&&v>=0&&v<=100)uDist({...dist,[k]:{...dist[k],pct:v}});setEk(null);setTp('')};
   const distColors={madre:theme.red,inversion:theme.green,ahorro:theme.accent,caprichos:theme.yellow};
+
+  useEffect(()=>{chatEndRef.current?.scrollIntoView({behavior:'smooth'});},[chatHistory]);
+
+  const buildContext=()=>{
+    const totBal2=accs.reduce((s,a)=>s+(a.balanceGBP||0),0);
+    const savBal=accs.filter(a=>a.type==='savings').reduce((s,a)=>s+(a.balanceGBP||0),0);
+    const accsStr=accs.map(a=>`${a.name} (${a.type}): ${sym}${fmtN(a.balanceGBP||0).toFixed(2)}`).join(', ');
+    const today=new Date();const mk=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
+    const gastosMes=cats.map(c=>{const e=exps.find(x=>x.cid===c.id&&x.mk===mk);return e?`${c.name}: ${sym}${fmtN(e.amountGBP||0).toFixed(2)}`:null;}).filter(Boolean).join(', ')||'Sin gastos registrados este mes';
+    const distStr=Object.entries(dist).map(([,v])=>`${v.label}: ${v.pct}%`).join(', ');
+    const goalsStr=goals.length?goals.map(g=>`${g.name}: ${sym}${fmtN(g.saved).toFixed(0)}/${sym}${fmtN(g.target).toFixed(0)}`).join(', '):'Sin metas';
+    const invsStr=invs.length?invs.map(i=>`${i.ticker} ${i.shares}acc@${i.invCurrency||'USD'}${i.buyPrice}`).join(', '):'Sin inversiones aún';
+    return `Eres un asesor financiero personal cercano y directo. Hablas en español informal. El usuario tiene estos datos financieros reales:\n- Balance total: ${sym}${fmtN(totBal2).toFixed(2)}\n- Cuentas: ${accsStr}\n- Ahorro: ${sym}${fmtN(savBal).toFixed(2)}\n- Gastos este mes: ${gastosMes}\n- Distribución mensual: ${distStr}\n- Metas: ${goalsStr}\n- Inversiones: ${invsStr}\n- Divisa principal: ${currency}\n\nEl usuario no tiene inversiones reales todavía y quiere empezar. Da consejos concretos, personalizados a sus datos reales. Sé honesto y directo. Máximo 4-5 frases por respuesta. Recuerda que no eres un asesor financiero oficial.`;
+  };
+
+  const sendMsg=async()=>{
+    if(!chatMsg.trim()||chatLd)return;
+    const userMsg=chatMsg.trim();
+    setChatMsg('');
+    const newHistory=[...chatHistory,{role:'user',content:userMsg}];
+    setChatHistory(newHistory);
+    setChatLd(true);
+    try{
+      const messages=newHistory.map(m=>({role:m.role,content:m.content}));
+      const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:600,system:buildContext(),messages})});
+      const d=await res.json();
+      const reply=d.content?.find(c=>c.type==='text')?.text||'Error al conectar.';
+      setChatHistory([...newHistory,{role:'assistant',content:reply}]);
+    }catch{
+      setChatHistory([...newHistory,{role:'assistant',content:'Error al conectar. Inténtalo de nuevo.'}]);
+    }
+    setChatLd(false);
+  };
+
+  const SUGGESTIONS=['¿Por dónde empiezo a invertir?','¿Cuánto debería ahorrar al mes?','¿Qué hago con mi dinero ahora mismo?'];
+
   return(
     <div style={{paddingTop:8,display:'flex',flexDirection:'column',gap:16}}>
       <div style={{background:theme.hero,borderRadius:20,padding:'22px 20px',border:`1px solid ${theme.heroBorder}`,position:'relative',overflow:'hidden'}}>
@@ -283,6 +385,59 @@ const HomeV=({dist,uDist,accs,totBal,savs,setView,fmt,theme})=>{
           ))}
         </div>
       </div>
+
+      {/* ADVISOR CARD */}
+      <Card style={{padding:0,overflow:'hidden'}}>
+        <div style={{padding:'16px 18px 12px',borderBottom:`1px solid ${theme.border}`,display:'flex',alignItems:'center',gap:10}}>
+          <div style={{width:34,height:34,borderRadius:10,background:theme.accent2,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16}}>🤖</div>
+          <div>
+            <p style={{margin:0,fontWeight:700,fontSize:15,color:theme.text}}>Asesor IA</p>
+            <p style={{margin:0,fontSize:11,color:theme.text3}}>Conoce todos tus datos · Pregunta lo que quieras</p>
+          </div>
+        </div>
+
+        {chatHistory.length===0&&(
+          <div style={{padding:'14px 16px'}}>
+            <p style={{margin:'0 0 10px',fontSize:12,color:theme.text3}}>Sugerencias:</p>
+            <div style={{display:'flex',flexDirection:'column',gap:7}}>
+              {SUGGESTIONS.map((s,i)=>(
+                <button key={i} onClick={()=>{setChatMsg(s);}} style={{background:theme.bg3,border:`1px solid ${theme.border}`,borderRadius:10,padding:'10px 14px',color:theme.text2,fontSize:13,cursor:'pointer',textAlign:'left',fontFamily:'DM Sans'}}>
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {chatHistory.length>0&&(
+          <div style={{padding:'14px 16px',display:'flex',flexDirection:'column',gap:12,maxHeight:320,overflowY:'auto'}}>
+            {chatHistory.map((m,i)=>(
+              <div key={i} style={{display:'flex',justifyContent:m.role==='user'?'flex-end':'flex-start'}}>
+                <div style={{maxWidth:'85%',padding:'10px 14px',borderRadius:m.role==='user'?'16px 16px 4px 16px':'16px 16px 16px 4px',background:m.role==='user'?theme.accent:theme.bg3,border:`1px solid ${m.role==='user'?theme.accent:theme.border}`}}>
+                  <p style={{margin:0,fontSize:13,color:m.role==='user'?'#fff':theme.text2,lineHeight:1.6,whiteSpace:'pre-wrap'}}>{m.content}</p>
+                </div>
+              </div>
+            ))}
+            {chatLd&&(
+              <div style={{display:'flex',justifyContent:'flex-start'}}>
+                <div style={{padding:'12px 16px',borderRadius:'16px 16px 16px 4px',background:theme.bg3,border:`1px solid ${theme.border}`,display:'flex',gap:5,alignItems:'center'}}>
+                  {[0,1,2].map(i=><div key={i} style={{width:6,height:6,borderRadius:'50%',background:theme.text3,animation:`pulse ${0.6+i*0.2}s infinite`}}/>)}
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef}/>
+          </div>
+        )}
+
+        <div style={{padding:'10px 14px',borderTop:`1px solid ${theme.border}`,display:'flex',gap:8}}>
+          <input value={chatMsg} onChange={e=>setChatMsg(e.target.value)} onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&sendMsg()} placeholder="Pregunta algo sobre tus finanzas..." className="inp" style={{background:theme.bg,border:`1px solid ${theme.border}`,color:theme.text,flex:1,padding:'10px 14px',fontSize:14}}/>
+          <button onClick={sendMsg} disabled={!chatMsg.trim()||chatLd} style={{background:theme.accent,border:'none',borderRadius:10,padding:'10px 14px',cursor:'pointer',color:'#fff',opacity:(!chatMsg.trim()||chatLd)?.5:1,flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
+            <Ic d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" s={18} c='#fff'/>
+          </button>
+        </div>
+        {chatHistory.length>0&&<button onClick={()=>setChatHistory([])} style={{background:'none',border:'none',color:theme.text3,fontSize:11,cursor:'pointer',padding:'4px 16px 10px',fontFamily:'DM Sans'}}>Limpiar conversación</button>}
+      </Card>
+
       <Card style={{padding:20}}>
         <h3 style={{margin:'0 0 12px',fontSize:15,fontWeight:600,color:theme.text}}>Distribución Mensual</h3>
         <div style={{height:8,borderRadius:4,overflow:'hidden',display:'flex',marginBottom:12}}>
@@ -308,61 +463,16 @@ const HomeV=({dist,uDist,accs,totBal,savs,setView,fmt,theme})=>{
           </CL>
         ))}
       </Card>
-      <Card style={{padding:20}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-          <h3 style={{margin:0,fontSize:15,fontWeight:600,color:theme.text}}>Ahorro Mensual</h3>
-          <button onClick={()=>setView('addSaving')} style={{background:theme.accent2,color:theme.tagText||theme.accent,border:'none',borderRadius:8,padding:'6px 12px',fontSize:13,fontWeight:600,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}><PlusIc/>Añadir</button>
-        </div>
-        {savs.length===0?<p style={{color:theme.text3,fontSize:13,textAlign:'center',padding:'8px 0',margin:0}}>Sin registros aún</p>:(
-          <div style={{display:'flex',flexDirection:'column',gap:8}}>
-            {[...savs].reverse().slice(0,4).map(r=>(
-              <CL key={r.id} style={{padding:'10px 14px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <span style={{fontSize:14,color:theme.text2}}>{r.month}</span>
-                <span style={{fontFamily:'DM Mono',fontWeight:600,color:theme.green}}>{fmt(r.amountGBP||0)}</span>
-              </CL>
-            ))}
-          </div>
-        )}
-      </Card>
     </div>
   );
 };
 
-const AddSavV=({savs,uSavs,mlist,setView,currency,theme})=>{
-  const [month,setMonth]=useState('');const [amt,setAmt]=useState('');const [cur,setCur]=useState(currency);
-  return(
-    <div style={{paddingTop:8}}>
-      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:20}}>
-        <button onClick={()=>setView('home')} style={{background:theme.bg2,border:`1px solid ${theme.border}`,color:theme.text,borderRadius:10,padding:'8px 14px',cursor:'pointer',fontSize:14}}>← Volver</button>
-        <h2 style={{margin:0,fontSize:20,fontWeight:700,color:theme.text}}>Registrar Ahorro</h2>
-      </div>
-      <Card style={{padding:20,display:'flex',flexDirection:'column',gap:14}}>
-        <div>
-          <label style={{fontSize:11,color:theme.text3,display:'block',marginBottom:6,fontWeight:500,textTransform:'uppercase',letterSpacing:.5}}>Mes</label>
-          <Sel value={month} onChange={e=>setMonth(e.target.value)}>
-            <option value="">Selecciona mes</option>
-            {mlist.map(m=><option key={m.key} value={m.label}>{m.label}</option>)}
-          </Sel>
-        </div>
-        <div style={{display:'grid',gridTemplateColumns:'1fr auto',gap:10,alignItems:'end'}}>
-          <div>
-            <label style={{fontSize:11,color:theme.text3,display:'block',marginBottom:6,fontWeight:500,textTransform:'uppercase',letterSpacing:.5}}>Cantidad</label>
-            <Inp type="number" inputMode="decimal" value={amt} onChange={e=>setAmt(e.target.value)} placeholder="0.00"/>
-          </div>
-          <Sel value={cur} onChange={e=>setCur(e.target.value)} style={{width:80}}>
-            <option value="GBP">£ GBP</option><option value="EUR">€ EUR</option>
-          </Sel>
-        </div>
-        <div style={{display:'flex',gap:10,marginTop:4}}>
-          <Btn onClick={()=>{if(month&&amt){const gbp=cur==='EUR'?parseFloat(amt)/1.17:parseFloat(amt)||0;uSavs([...savs,{id:Date.now(),month,amountGBP:gbp}]);setView('home')}}}>Guardar</Btn>
-          <BtnS onClick={()=>setView('home')}>Cancelar</BtnS>
-        </div>
-      </Card>
-    </div>
-  );
+const AddSavV=({setView})=>{
+  useEffect(()=>setView('home'),[]);
+  return null;
 };
 
-const AccsV=({accs,uAccs,totBal,fmt,theme})=>{
+const AccsV=({accs,uAccs,totBal,fmt,exRate,theme})=>{
   const [show,setShow]=useState(false);const [eid,setEid]=useState(null);
   const [nw,setNw]=useState({name:'',type:'current',balance:'',cur:'GBP'});
   const [tb,setTb]=useState('');const [tCur,setTCur]=useState('GBP');
@@ -384,7 +494,7 @@ const AccsV=({accs,uAccs,totBal,fmt,theme})=>{
             <Sel value={nw.cur} onChange={e=>setNw({...nw,cur:e.target.value})} style={{width:80}}><option value="GBP">£ GBP</option><option value="EUR">€ EUR</option></Sel>
           </div>
           <div style={{display:'flex',gap:10}}>
-            <Btn onClick={()=>{if(nw.name&&nw.balance!==''){const gbp=nw.cur==='EUR'?parseFloat(nw.balance)/1.17:parseFloat(nw.balance)||0;uAccs([...accs,{id:Date.now(),name:nw.name,type:nw.type,balanceGBP:gbp}]);setNw({name:'',type:'current',balance:'',cur:'GBP'});setShow(false)}}}>Guardar</Btn>
+            <Btn onClick={()=>{if(nw.name&&nw.balance!==''){const gbp=nw.cur==='EUR'?parseFloat(nw.balance)/exRate:parseFloat(nw.balance)||0;uAccs([...accs,{id:Date.now(),name:nw.name,type:nw.type,balanceGBP:gbp}]);setNw({name:'',type:'current',balance:'',cur:'GBP'});setShow(false)}}}>Guardar</Btn>
             <BtnS onClick={()=>setShow(false)}>Cancelar</BtnS>
           </div>
         </Card>
@@ -400,9 +510,9 @@ const AccsV=({accs,uAccs,totBal,fmt,theme})=>{
           </div>
           {eid===a.id?(
             <div style={{display:'flex',gap:8}}>
-              <Inp type="number" inputMode="decimal" value={tb} onChange={e=>setTb(e.target.value)} autoFocus onKeyDown={e=>{if(e.key==='Enter'){const gbp=tCur==='EUR'?parseFloat(tb)/1.17:parseFloat(tb)||0;uAccs(accs.map(x=>x.id===a.id?{...x,balanceGBP:gbp}:x));setEid(null)}}}/>
+              <Inp type="number" inputMode="decimal" value={tb} onChange={e=>setTb(e.target.value)} autoFocus onKeyDown={e=>{if(e.key==='Enter'){const gbp=tCur==='EUR'?parseFloat(tb)/exRate:parseFloat(tb)||0;uAccs(accs.map(x=>x.id===a.id?{...x,balanceGBP:gbp}:x));setEid(null)}}}/>
               <Sel value={tCur} onChange={e=>setTCur(e.target.value)} style={{width:80}}><option value="GBP">£</option><option value="EUR">€</option></Sel>
-              <Btn onClick={()=>{const gbp=tCur==='EUR'?parseFloat(tb)/1.17:parseFloat(tb)||0;uAccs(accs.map(x=>x.id===a.id?{...x,balanceGBP:gbp}:x));setEid(null)}} style={{width:'auto',padding:'10px 16px'}}>OK</Btn>
+              <Btn onClick={()=>{const gbp=tCur==='EUR'?parseFloat(tb)/exRate:parseFloat(tb)||0;uAccs(accs.map(x=>x.id===a.id?{...x,balanceGBP:gbp}:x));setEid(null)}} style={{width:'auto',padding:'10px 16px'}}>OK</Btn>
             </div>
           ):(
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
@@ -416,7 +526,7 @@ const AccsV=({accs,uAccs,totBal,fmt,theme})=>{
   );
 };
 
-const ExpsV=({cats,uCats,exps,uExps,mlist,uMlist,fmt,fmtN,sym,currency,theme})=>{
+const ExpsV=({cats,uCats,exps,uExps,mlist,uMlist,fmt,fmtN,sym,currency,exRate,theme})=>{
   const today=new Date();
   const defKey=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
   const [selKey,setSelKey]=useState(mlist.find(m=>m.key===defKey)?.key||mlist[0]?.key||'');
@@ -434,7 +544,7 @@ const ExpsV=({cats,uCats,exps,uExps,mlist,uMlist,fmt,fmtN,sym,currency,theme})=>
   },[selKey,cats.length,inputCur]);
   const getAmt=cid=>{const e=exps.find(x=>x.cid===cid&&x.mk===selKey);return e?(e.amountGBP||0):0;};
   const commit=(cid,raw)=>{
-    const disp=parseFloat(raw)||0;const gbp=inputCur==='EUR'?disp/1.17:disp;
+    const disp=parseFloat(raw)||0;const gbp=inputCur==='EUR'?disp/exRate:disp;
     const idx=exps.findIndex(x=>x.cid===cid&&x.mk===selKey);
     let up;if(idx>=0){up=[...exps];up[idx]={...up[idx],amountGBP:gbp};}else up=[...exps,{id:Date.now(),cid,mk:selKey,amountGBP:gbp}];
     uExps(up);
@@ -628,6 +738,7 @@ const InvsV=({invs,uInvs,fmt,fmtN,sym,theme})=>{
   const [show,setShow]=useState(false);const [nw,setNw]=useState({ticker:'',company:'',shares:'',buyPrice:'',buyDate:'',currency:'USD'});
   const [prices,setPrices]=useState({});const [ldP,setLdP]=useState({});const [ana,setAna]=useState({});const [ldA,setLdA]=useState({});
   const [expId,setExpId]=useState(null);const [hist,setHist]=useState({});const [ldH,setLdH]=useState({});const [range,setRange]=useState({});
+  const [portAna,setPortAna]=useState(null);const [ldPort,setLdPort]=useState(false);
   const fetchPrice=async(ticker)=>{
     setLdP(p=>({...p,[ticker]:true}));
     try{
@@ -662,6 +773,24 @@ const InvsV=({invs,uInvs,fmt,fmtN,sym,theme})=>{
     setLdA(a=>({...a,[inv.id]:false}));
   };
   useEffect(()=>{invs.forEach(i=>fetchPrice(i.ticker));},[invs.length]);
+  const getPortAna=async()=>{
+    if(invs.length===0)return;
+    setLdPort(true);setPortAna(null);
+    const posicions=invs.map(inv=>{
+      const p=prices[inv.ticker];const invested=inv.shares*inv.buyPrice;
+      const cur=p?.price?p.price*inv.shares:null;
+      const pl=cur!=null?((cur-invested)/invested*100).toFixed(1):null;
+      const s=inv.invCurrency||inv.currency||'USD';
+      return `${inv.ticker} (${inv.company||'?'}): ${inv.shares} accions a ${s}${inv.buyPrice}, ara ${p?.price?`${s}${p.price.toFixed(2)}, P&L ${pl}%`:'preu no disponible'}`;
+    }).join('\n');
+    try{
+      const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,tools:[{type:'web_search_20250305',name:'web_search'}],messages:[{role:'user',content:`Busca noticias recientes de mercado y analiza este portfolio de inversión personal:\n\n${posicions}\n\nTotal invertido: $${tI.toFixed(2)} | Valor actual: $${tC.toFixed(2)} | P&L global: ${tPLp>=0?'+':''}${tPLp.toFixed(1)}%\n\nDame un análisis en español informal de 4-6 frases sobre: 1) visión general del portfolio, 2) qué posiciones van bien/mal según noticias recientes, 3) si hay demasiada concentración en algún sector, 4) una recomendación concreta. Sé directo y honesto. Al final añade que no es asesoramiento financiero.`}]})});
+      const d=await res.json();
+      const text=d.content?.filter(c=>c.type==='text').map(c=>c.text).join('');
+      setPortAna(text||'Sin respuesta');
+    }catch{setPortAna('Error al conectar. Inténtalo de nuevo.');}
+    setLdPort(false);
+  };
   const tI=invs.reduce((s,i)=>s+i.shares*i.buyPrice,0);
   const tC=invs.reduce((s,i)=>{const p=prices[i.ticker];return s+(p?.price?p.price*i.shares:i.shares*i.buyPrice);},0);
   const tPL=tC-tI,tPLp=tI>0?(tPL/tI)*100:0;
@@ -692,10 +821,18 @@ const InvsV=({invs,uInvs,fmt,fmtN,sym,theme})=>{
       {invs.length>0&&(<div style={{background:theme.hero,borderRadius:20,padding:20,border:`1px solid ${theme.heroBorder}`}}>
         <p style={{margin:'0 0 2px',fontSize:11,color:'rgba(255,255,255,.4)',textTransform:'uppercase',letterSpacing:1}}>Portfolio</p>
         <p style={{margin:'0 0 10px',fontSize:30,fontWeight:700,fontFamily:'DM Mono',color:'#fff'}}>${tC.toFixed(2)}</p>
-        <div style={{display:'flex',gap:16}}>
+        <div style={{display:'flex',gap:16,marginBottom:14}}>
           <div><p style={{margin:'0 0 2px',fontSize:10,color:'rgba(255,255,255,.4)'}}>Invertido</p><p style={{margin:0,fontFamily:'DM Mono',fontWeight:600,color:'rgba(255,255,255,.8)',fontSize:14}}>${tI.toFixed(2)}</p></div>
           <div><p style={{margin:'0 0 2px',fontSize:10,color:'rgba(255,255,255,.4)'}}>P&L</p><p style={{margin:0,fontFamily:'DM Mono',fontWeight:600,color:tPL>=0?theme.green:theme.red,fontSize:14}}>{tPL>=0?'+':''}{tPL.toFixed(2)} ({tPLp>=0?'+':''}{tPLp.toFixed(1)}%)</p></div>
         </div>
+        <button onClick={getPortAna} disabled={ldPort} style={{width:'100%',background:'rgba(255,255,255,.1)',color:'#fff',border:'1px solid rgba(255,255,255,.2)',borderRadius:12,padding:'11px',cursor:'pointer',fontSize:13,fontWeight:600,display:'flex',alignItems:'center',justifyContent:'center',gap:7,fontFamily:'DM Sans'}}>
+          {ldPort?<><Spin s={16} c='#fff'/><span>Analizando portfolio...</span></>:<><StarIc/>Analizar portfolio con IA</>}
+        </button>
+        {portAna&&!ldPort&&(<div style={{marginTop:12,background:'rgba(0,0,0,.25)',borderRadius:12,padding:14,border:'1px solid rgba(255,255,255,.1)'}}>
+          <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:8}}><StarIc/><span style={{fontSize:11,fontWeight:600,color:'rgba(255,255,255,.7)',textTransform:'uppercase',letterSpacing:.5}}>Análisis IA</span><span style={{fontSize:10,color:'rgba(255,255,255,.3)'}}>no es asesoramiento</span></div>
+          <p style={{margin:0,fontSize:13,color:'rgba(255,255,255,.85)',lineHeight:1.7}}>{portAna}</p>
+          <button onClick={()=>setPortAna(null)} style={{background:'none',border:'none',color:'rgba(255,255,255,.3)',fontSize:11,cursor:'pointer',padding:'6px 0 0',fontFamily:'DM Sans'}}>Cerrar ✕</button>
+        </div>)}
       </div>)}
       {show&&(<Card style={{padding:20,display:'flex',flexDirection:'column',gap:12}}>
         <h3 style={{margin:'0 0 4px',fontSize:15,fontWeight:600,color:theme.text}}>Nueva Posición</h3>
